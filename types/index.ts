@@ -32,4 +32,6 @@ export interface MatchResult {
   opportunityId: string;
   relevance: "Strong" | "Moderate" | "Light";
   note: string;
+  missingSkills: string[];
+  summary: string;
 }

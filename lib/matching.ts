@@ -6,7 +6,13 @@ import type { Opportunity, StudentProfile } from "@/types";
 
 /**
  * Returns opportunities whose deadline is today or in the future.
- * Deadlines are compared at midnight UTC so a deadline of "today" is included.
+ *
+ * Handles both plain date strings ("YYYY-MM-DD") and full ISO timestamps
+ * ("2025-01-15T00:00:00Z") so that live API results (e.g. Himalayas) are
+ * compared accurately without dropping valid opportunities.
+ *
+ * Comparison is date-only at midnight UTC: a deadline of "today" is included.
+ *
  * @param now - injectable for deterministic testing; defaults to new Date()
  */
 export function filterExpired(
@@ -21,9 +27,19 @@ export function filterExpired(
   );
 
   return opportunities.filter((opp) => {
-    // Parse "YYYY-MM-DD" as midnight UTC.
-    const [year, month, day] = opp.deadline.split("-").map(Number);
-    const deadlineUtc = Date.UTC(year, month - 1, day);
+    // Date.parse handles both "YYYY-MM-DD" (treated as UTC by spec) and full
+    // ISO timestamp strings. Fall back to including the opportunity if the
+    // string is unparseable (NaN) so we never silently drop a listing.
+    const raw = Date.parse(opp.deadline);
+    if (isNaN(raw)) return true;
+
+    // Normalise the parsed timestamp to midnight UTC for date-only comparison.
+    const d = new Date(raw);
+    const deadlineUtc = Date.UTC(
+      d.getUTCFullYear(),
+      d.getUTCMonth(),
+      d.getUTCDate(),
+    );
     return deadlineUtc >= todayUtc;
   });
 }
@@ -150,13 +166,12 @@ interface HimalayasResponse {
  */
 export async function fetchRemoteOpportunities(): Promise<Opportunity[]> {
   try {
-    const response = await fetch(
-      "https://himalayas.app/jobs/api?limit=10",
-    );
+    const response = await fetch("https://himalayas.app/jobs/api?limit=10");
 
     if (!response.ok) return [];
 
-    const data: HimalayasResponse = (await response.json()) as HimalayasResponse;
+    const data: HimalayasResponse =
+      (await response.json()) as HimalayasResponse;
 
     if (!Array.isArray(data.jobs)) return [];
 
@@ -191,7 +206,13 @@ export async function fetchRemoteOpportunities(): Promise<Opportunity[]> {
       const rawId =
         typeof job.id === "string" || typeof job.id === "number"
           ? `himalayas-${job.id}`
-          : `himalayas-${rawTitle.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}-${rawOrg.toLowerCase().replace(/\s+/g, "-").slice(0, 20)}`;
+          : `himalayas-${rawTitle
+              .toLowerCase()
+              .replace(/\s+/g, "-")
+              .slice(0, 40)}-${rawOrg
+              .toLowerCase()
+              .replace(/\s+/g, "-")
+              .slice(0, 20)}`;
 
       // Infer category from title + description text
       const lowerText = `${rawTitle} ${rawDescription}`.toLowerCase();
@@ -204,12 +225,15 @@ export async function fetchRemoteOpportunities(): Promise<Opportunity[]> {
       // Extract skills array if provided, otherwise default to empty
       const skills: string[] = Array.isArray(job.skills)
         ? (job.skills as unknown[])
-            .filter((s): s is string => typeof s === "string" && s.trim() !== "")
+            .filter(
+              (s): s is string => typeof s === "string" && s.trim() !== "",
+            )
             .map((s) => s.trim())
         : [];
 
       // Short description: first sentence of rawDescription, capped at 160 chars
-      const firstSentence = rawDescription.split(/[.!?]/)[0] ?? rawDescription;
+      const firstSentence =
+        rawDescription.split(/[.!?]/)[0] ?? rawDescription;
       const shortDescription =
         firstSentence.length > 160
           ? firstSentence.slice(0, 157) + "..."
@@ -224,14 +248,16 @@ export async function fetchRemoteOpportunities(): Promise<Opportunity[]> {
         fullDescription: rawDescription,
         skills,
         interests: ["remote work", "technology"],
-        eligibility: "Check the company's job listing for eligibility details.",
+        eligibility:
+          "Check the company's job listing for eligibility details.",
         location: "Remote",
         mode: "remote",
         deadline: deadlineFallback,
         isFree: true,
         applicationUrl: rawUrl,
         sourceStatus: "seeded",
-        sourceNote: "live listing from Himalayas public API — verify before applying",
+        sourceNote:
+          "live listing from Himalayas public API — verify before applying",
       };
     });
   } catch {

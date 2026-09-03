@@ -29,6 +29,27 @@ const PREFERRED_TYPES = [
 
 const PREFERRED_MODES = ["remote", "onsite", "hybrid"] as const;
 
+const DEGREE_OPTIONS = ["BS", "B.Com", "BBA", "BE", "MS", "Other"] as const;
+
+const FIELD_OPTIONS = [
+  "Software Engineering",
+  "Computer Science",
+  "Data Science",
+  "Electrical Engineering",
+  "Mechanical Engineering",
+  "Finance",
+  "Marketing",
+  "Architecture",
+  "Other",
+] as const;
+
+/** Convert any string to Title Case */
+function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/(?:^|\s)\S/g, (c) => c.toUpperCase());
+}
+
 function uniqueSorted(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
     a.localeCompare(b),
@@ -54,6 +75,108 @@ function toggleValue(list: string[], value: string) {
   return list.includes(value)
     ? list.filter((item) => item !== value)
     : [...list, value];
+}
+
+// ---------------------------------------------------------------------------
+// Pill/chip selector component
+// ---------------------------------------------------------------------------
+function PillSelector({
+  options,
+  selected,
+  onToggle,
+  titleCase = true,
+}: {
+  options: string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  titleCase?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      {options.map((opt) => {
+        const active = selected.includes(opt);
+        const label = titleCase ? toTitleCase(opt) : opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onToggle(opt)}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all border ${
+              active
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                : "bg-white text-neutral-600 border-neutral-200 hover:border-indigo-300 hover:text-indigo-600"
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Searchable select with "Other" option
+// ---------------------------------------------------------------------------
+function SearchableSelect({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder,
+  inputClass,
+}: {
+  label: string;
+  options: readonly string[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  inputClass: string;
+}) {
+  const isOther = value !== "" && !options.slice(0, -1).includes(value);
+  const [showCustom, setShowCustom] = useState(isOther);
+
+  function handleSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const v = e.target.value;
+    if (v === "Other") {
+      setShowCustom(true);
+      onChange("");
+    } else {
+      setShowCustom(false);
+      onChange(v);
+    }
+  }
+
+  // Determine what the select should show
+  const selectValue = showCustom ? "Other" : value;
+
+  return (
+    <label className="block text-sm font-medium text-neutral-800">
+      {label}
+      <select
+        value={selectValue}
+        onChange={handleSelect}
+        className={inputClass}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+      {showCustom && (
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Type your ${label.toLowerCase()}…`}
+          className={`${inputClass} mt-2`}
+          autoFocus
+        />
+      )}
+    </label>
+  );
 }
 
 export default function OnboardingPage() {
@@ -139,45 +262,29 @@ export default function OnboardingPage() {
           {isEditing ? "Edit your profile" : "Tell us about you"}
         </h1>
         <p className="mt-3 max-w-xl text-neutral-600">
-          This stays in your browser under{" "}
-          <span className="font-medium text-neutral-800">stepahead_profile</span>
-          . Nothing is sent to a server from this page.
+          Your profile is saved locally on this device. Nothing is sent to a
+          server from this page.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-12 space-y-10">
+          {/* Degree & Field — searchable selects */}
           <div className="grid gap-6 sm:grid-cols-2">
-            <label className="block text-sm font-medium text-neutral-800">
-              Degree
-              <input
-                required
-                name="degree"
-                value={profile.degree}
-                onChange={(event) =>
-                  setProfile((current) => ({
-                    ...current,
-                    degree: event.target.value,
-                  }))
-                }
-                placeholder="B.Tech"
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-sm font-medium text-neutral-800">
-              Field
-              <input
-                required
-                name="field"
-                value={profile.field}
-                onChange={(event) =>
-                  setProfile((current) => ({
-                    ...current,
-                    field: event.target.value,
-                  }))
-                }
-                placeholder="Computer Science"
-                className={inputClass}
-              />
-            </label>
+            <SearchableSelect
+              label="Degree"
+              options={DEGREE_OPTIONS}
+              value={profile.degree}
+              onChange={(v) => setProfile((p) => ({ ...p, degree: v }))}
+              placeholder="Select a degree"
+              inputClass={inputClass}
+            />
+            <SearchableSelect
+              label="Field"
+              options={FIELD_OPTIONS}
+              value={profile.field}
+              onChange={(v) => setProfile((p) => ({ ...p, field: v }))}
+              placeholder="Select a field"
+              inputClass={inputClass}
+            />
             <label className="block text-sm font-medium text-neutral-800 sm:col-span-2">
               Semester
               <input
@@ -196,6 +303,7 @@ export default function OnboardingPage() {
             </label>
           </div>
 
+          {/* Skills */}
           <fieldset>
             <legend className="text-sm font-medium text-neutral-800">
               Skills
@@ -203,29 +311,19 @@ export default function OnboardingPage() {
             <p className="mt-1 text-sm text-neutral-500">
               Choose all that apply.
             </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {skillOptions.map((skill) => (
-                <label
-                  key={skill}
-                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800"
-                >
-                  <input
-                    type="checkbox"
-                    checked={profile.skills.includes(skill)}
-                    onChange={() =>
-                      setProfile((current) => ({
-                        ...current,
-                        skills: toggleValue(current.skills, skill),
-                      }))
-                    }
-                    className="rounded border-neutral-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  {skill}
-                </label>
-              ))}
-            </div>
+            <PillSelector
+              options={skillOptions}
+              selected={profile.skills}
+              onToggle={(skill) =>
+                setProfile((p) => ({
+                  ...p,
+                  skills: toggleValue(p.skills, skill),
+                }))
+              }
+            />
           </fieldset>
 
+          {/* Interests */}
           <fieldset>
             <legend className="text-sm font-medium text-neutral-800">
               Interests
@@ -233,67 +331,43 @@ export default function OnboardingPage() {
             <p className="mt-1 text-sm text-neutral-500">
               Choose all that apply.
             </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {interestOptions.map((interest) => (
-                <label
-                  key={interest}
-                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800"
-                >
-                  <input
-                    type="checkbox"
-                    checked={profile.interests.includes(interest)}
-                    onChange={() =>
-                      setProfile((current) => ({
-                        ...current,
-                        interests: toggleValue(current.interests, interest),
-                      }))
-                    }
-                    className="rounded border-neutral-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  {interest}
-                </label>
-              ))}
-            </div>
+            <PillSelector
+              options={interestOptions}
+              selected={profile.interests}
+              onToggle={(interest) =>
+                setProfile((p) => ({
+                  ...p,
+                  interests: toggleValue(p.interests, interest),
+                }))
+              }
+            />
           </fieldset>
 
+          {/* Preferred types */}
           <fieldset>
             <legend className="text-sm font-medium text-neutral-800">
-              Preferred types
+              Preferred opportunity types
             </legend>
             <p className="mt-1 text-sm text-neutral-500">
               What kinds of opportunities do you want in your feed?
             </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {PREFERRED_TYPES.map((type) => (
-                <label
-                  key={type}
-                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm capitalize text-neutral-800"
-                >
-                  <input
-                    type="checkbox"
-                    checked={profile.preferredTypes.includes(type)}
-                    onChange={() =>
-                      setProfile((current) => ({
-                        ...current,
-                        preferredTypes: toggleValue(
-                          current.preferredTypes,
-                          type,
-                        ),
-                      }))
-                    }
-                    className="rounded border-neutral-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  {type}
-                </label>
-              ))}
-            </div>
+            <PillSelector
+              options={[...PREFERRED_TYPES]}
+              selected={profile.preferredTypes}
+              onToggle={(type) =>
+                setProfile((p) => ({
+                  ...p,
+                  preferredTypes: toggleValue(p.preferredTypes, type),
+                }))
+              }
+            />
           </fieldset>
 
+          {/* Preferred location & mode */}
           <div className="grid gap-6 sm:grid-cols-2">
             <label className="block text-sm font-medium text-neutral-800">
               Preferred location
               <select
-                required
                 name="preferredLocation"
                 value={profile.preferredLocation}
                 onChange={(event) =>
@@ -304,7 +378,7 @@ export default function OnboardingPage() {
                 }
                 className={inputClass}
               >
-                <option value="">Select a location</option>
+                <option value="">All locations</option>
                 {locationOptions.map((location) => (
                   <option key={location} value={location}>
                     {location}
@@ -315,7 +389,6 @@ export default function OnboardingPage() {
             <label className="block text-sm font-medium text-neutral-800">
               Preferred mode
               <select
-                required
                 name="preferredMode"
                 value={profile.preferredMode}
                 onChange={(event) =>
@@ -326,10 +399,10 @@ export default function OnboardingPage() {
                 }
                 className={inputClass}
               >
-                <option value="">Select a mode</option>
+                <option value="">All modes</option>
                 {PREFERRED_MODES.map((mode) => (
                   <option key={mode} value={mode}>
-                    {mode}
+                    {toTitleCase(mode)}
                   </option>
                 ))}
               </select>

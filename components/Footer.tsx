@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const FAQS = [
   {
@@ -24,75 +27,83 @@ const FAQS = [
 ];
 
 export default function Footer() {
+  const pathname = usePathname();
+
   return (
     <footer className="border-t border-neutral-200 bg-white font-[family-name:var(--font-geist-sans)]">
-      {/* FAQ section */}
-      <div className="mx-auto max-w-5xl px-6 py-16">
-        <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
-          Frequently asked questions
-        </h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          Everything you need to know about how StepAhead works.
-        </p>
+      {/* FAQ — only on the landing page. Component unmounts on navigation so
+          accordion open-state resets automatically when leaving "/". */}
+      {pathname === "/" && (
+        <div className="mx-auto max-w-5xl px-6 pt-12 pb-8 mb-12">
+          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">
+            Frequently asked questions
+          </h2>
+          <p className="mt-1 text-sm text-neutral-500">
+            Everything you need to know about how StepAhead works.
+          </p>
 
-        <dl className="mt-8 space-y-6 divide-y divide-neutral-100">
-          {FAQS.map((faq) => (
-            <details key={faq.q} className="group pt-6 first:pt-0">
-              <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
-                <dt className="text-sm font-medium text-neutral-900">
-                  {faq.q}
-                </dt>
-                <span className="mt-0.5 shrink-0 text-neutral-400 transition-transform group-open:rotate-180">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </span>
-              </summary>
-              <dd className="mt-3 text-sm leading-relaxed text-neutral-600">
-                {faq.a}
-              </dd>
-            </details>
-          ))}
-        </dl>
-      </div>
+          <dl className="mt-6 divide-y divide-neutral-100">
+            {FAQS.map((faq) => (
+              <details key={faq.q} className="group py-4">
+                <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
+                  <dt className="text-sm font-medium text-neutral-900">
+                    {faq.q}
+                  </dt>
+                  <span className="mt-0.5 shrink-0 text-neutral-400 transition-transform duration-200 group-open:rotate-180">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </summary>
+                <dd className="mt-2 text-sm leading-relaxed text-slate-600">
+                  {faq.a}
+                </dd>
+              </details>
+            ))}
+          </dl>
+        </div>
+      )}
 
-      {/* Bottom bar */}
+      {/* Bottom bar — visible on every page */}
       <div className="border-t border-neutral-100">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 px-6 py-6 sm:flex-row">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+          {/* Left: favicon + brand name */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold tracking-tight text-indigo-600">
-              StepAhead
-            </span>
-            <span className="text-neutral-300">·</span>
-            <span className="text-xs text-neutral-400">
-              Helping students find opportunities that fit.
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/favicon.ico"
+              alt=""
+              width={16}
+              height={16}
+              className="w-4 h-4 rounded-sm"
+              aria-hidden="true"
+            />
+            <span className="text-sm font-medium text-slate-500">StepAhead</span>
           </div>
-          <div className="flex flex-col items-center gap-1 sm:items-end">
-            <p className="text-xs text-neutral-400">
+          {/* Right: edit profile + attribution */}
+          <div className="flex items-center gap-4 text-xs text-slate-400">
+            <Link
+              href="/onboarding"
+              className="transition-colors hover:text-indigo-600"
+            >
+              Edit profile
+            </Link>
+            <span className="text-neutral-200">·</span>
+            <span>
               Designed &amp; Developed by{" "}
-              <span className="font-medium text-neutral-600">Ayesha Eman</span>
-            </p>
-            <div className="flex items-center gap-3 text-xs text-neutral-400">
-              <Link href="/onboarding" className="hover:text-indigo-600 transition-colors">
-                Edit profile
-              </Link>
-              <span className="text-neutral-200">·</span>
-              <span>No account required</span>
-              <span className="text-neutral-200">·</span>
-              <span>No data stored</span>
-            </div>
+              <span className="font-medium text-neutral-500">Ayesha Eman</span>
+            </span>
           </div>
         </div>
       </div>

@@ -34,4 +34,5 @@ export interface MatchResult {
   note: string;
   missingSkills: string[];
   summary: string;
+  actionableAdvice?: string;
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getOpportunities } from "@/lib/opportunities";
 import type { StudentProfile } from "@/types";
+import Navbar from "@/components/Navbar";
+import PillSelector from "@/components/PillSelector";
 
 const STORAGE_KEY = "stepahead_profile";
 
@@ -43,17 +44,15 @@ const FIELD_OPTIONS = [
   "Other",
 ] as const;
 
-/** Convert any string to Title Case */
-function toTitleCase(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/(?:^|\s)\S/g, (c) => c.toUpperCase());
-}
-
 function uniqueSorted(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
     a.localeCompare(b),
   );
+}
+
+/** Used only for mode dropdown display labels */
+function toTitleCase(str: string): string {
+  return str.toLowerCase().replace(/(?:^|\s)\S/g, (c) => c.toUpperCase());
 }
 
 function isStudentProfile(value: unknown): value is StudentProfile {
@@ -75,44 +74,6 @@ function toggleValue(list: string[], value: string) {
   return list.includes(value)
     ? list.filter((item) => item !== value)
     : [...list, value];
-}
-
-// ---------------------------------------------------------------------------
-// Pill/chip selector component
-// ---------------------------------------------------------------------------
-function PillSelector({
-  options,
-  selected,
-  onToggle,
-  titleCase = true,
-}: {
-  options: string[];
-  selected: string[];
-  onToggle: (value: string) => void;
-  titleCase?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2 mt-3">
-      {options.map((opt) => {
-        const active = selected.includes(opt);
-        const label = titleCase ? toTitleCase(opt) : opt;
-        return (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => onToggle(opt)}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all border ${
-              active
-                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                : "bg-white text-neutral-600 border-neutral-200 hover:border-indigo-300 hover:text-indigo-600"
-            }`}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -247,23 +208,20 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 font-[family-name:var(--font-geist-sans)]">
-      <header className="mx-auto flex max-w-3xl items-center justify-between px-6 py-6">
-        <Link
-          href="/"
-          className="text-sm font-semibold tracking-tight text-indigo-600"
-        >
-          StepAhead
-        </Link>
-        <span className="text-sm text-neutral-500">Saved on this device</span>
-      </header>
+      <Navbar
+        maxWidth="max-w-3xl"
+        rightSlot={
+          <span className="text-sm text-neutral-500">Saved on this device</span>
+        }
+      />
 
       <main className="mx-auto max-w-3xl px-6 pb-24 pt-4">
-        <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
           {isEditing ? "Edit your profile" : "Tell us about you"}
         </h1>
-        <p className="mt-3 max-w-xl text-neutral-600">
-          Your profile is saved locally on this device. Nothing is sent to a
-          server from this page.
+        <p className="mt-3 max-w-xl text-sm text-slate-500 font-normal">
+          Privacy First: Your profile is stored locally on this device and used
+          solely to compute your match scores.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-12 space-y-10">

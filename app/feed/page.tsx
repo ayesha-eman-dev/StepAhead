@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getOpportunities } from "@/lib/opportunities";
@@ -16,6 +16,7 @@ import type {
   FallbackRecommendation,
   FallbackPayload,
 } from "@/app/api/relevance/route";
+import Navbar from "@/components/Navbar";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -175,17 +176,18 @@ function dedupe(opportunities: Opportunity[]): Opportunity[] {
 
 function scoreBadgeClass(score: number): string {
   if (score >= 70)
-    return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-  if (score >= 40) return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
-  return "bg-neutral-100 text-neutral-500 ring-1 ring-neutral-200";
+    return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 font-semibold text-xs rounded-full px-3 py-1";
+  if (score >= 40)
+    return "bg-amber-50 text-amber-700 ring-1 ring-amber-200 font-semibold text-xs rounded-full px-3 py-1";
+  return "bg-neutral-100 text-neutral-600 ring-1 ring-neutral-200 font-medium text-xs rounded-full px-3 py-1";
 }
 
 function relevanceBadgeClass(relevance: MatchResult["relevance"]): string {
   if (relevance === "Strong")
-    return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+    return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 font-semibold text-xs rounded-full px-3 py-1";
   if (relevance === "Moderate")
-    return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
-  return "bg-neutral-100 text-neutral-500 ring-1 ring-neutral-200";
+    return "bg-amber-50 text-amber-700 ring-1 ring-amber-200 font-semibold text-xs rounded-full px-3 py-1";
+  return "bg-neutral-100 text-neutral-600 ring-1 ring-neutral-200 font-medium text-xs rounded-full px-3 py-1";
 }
 
 function formatDeadline(deadline: string): string {
@@ -202,14 +204,17 @@ function formatDeadline(deadline: string): string {
 // ChipGroup
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ChipGroup — flat toolbar, no label headers, lightweight brand chip styles
+// ---------------------------------------------------------------------------
+
 function ChipGroup<T extends string>({
-  label,
   options,
   selected,
   multi,
   onChange,
 }: {
-  label: string;
+  label?: string; // kept for call-site compatibility, not rendered
   options: readonly T[];
   selected: T[];
   multi: boolean;
@@ -236,32 +241,50 @@ function ChipGroup<T extends string>({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
-        {label}
-      </span>
-      <div className="flex flex-wrap gap-2">
-        {options.map((opt) => {
-          const active = selected.includes(opt);
-          return (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => toggle(opt)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors capitalize ${
-                active
-                  ? "bg-indigo-600 text-white"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-              }`}
-            >
-              {opt}
-            </button>
-          );
-        })}
-      </div>
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((opt) => {
+        const active = selected.includes(opt);
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => toggle(opt)}
+            className={`capitalize transition-colors ${
+              active
+                ? "bg-indigo-50 text-indigo-700 ring-2 ring-indigo-600/80 font-semibold text-xs px-3 py-1.5 rounded-lg shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200/80 text-xs font-medium px-3 py-1.5 rounded-lg"
+            }`}
+          >
+            {opt}
+          </button>
+        );
+      })}
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Empty-state fallback recommendations (shown when AI returns nothing)
+// ---------------------------------------------------------------------------
+
+const STATIC_FALLBACK_RECS: FallbackRecommendation[] = [
+  {
+    type: "platform",
+    title: "Explore verified opportunities on LinkedIn & PSEB",
+    body: "Search LinkedIn Jobs and the PSEB Student Programme portal for remote-friendly roles in your field — both maintain active listings for Pakistani students.",
+    url: "https://www.linkedin.com/jobs/",
+  },
+  {
+    type: "tip",
+    title: "Broaden your filters to surface more matches",
+    body: "Try switching your mode filter to 'remote' and setting location to 'All' — the majority of global fellowships and competitions are fully remote and open worldwide.",
+  },
+  {
+    type: "action",
+    title: "Update your profile with additional skills",
+    body: "Add any tools or frameworks you are learning to your profile skills — even beginner-level exposure improves match scores and unlocks a wider set of global remote programmes.",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Empty-state card
@@ -284,6 +307,9 @@ function EmptyStateCard({
     tip: "bg-amber-50 text-amber-700 ring-1 ring-amber-100",
     action: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
   };
+
+  // Use AI recs when available; fall back to static list so the panel is never blank
+  const displayRecs = recommendations.length > 0 ? recommendations : STATIC_FALLBACK_RECS;
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
@@ -310,16 +336,18 @@ function EmptyStateCard({
               </span>
             </div>
           </div>
-        ) : recommendations.length > 0 ? (
+        ) : (
           <>
             <div className="flex items-center gap-2 mb-4">
               <SparklesIcon className="h-4 w-4 text-indigo-500" />
               <p className="text-sm font-semibold text-neutral-700">
-                AI-powered suggestions for you
+                {recommendations.length > 0
+                  ? "AI-powered suggestions for you"
+                  : "Suggestions to get you started"}
               </p>
             </div>
             <ul className="space-y-3">
-              {recommendations.map((rec, i) => (
+              {displayRecs.map((rec, i) => (
                 <li
                   key={i}
                   className="rounded-lg border border-neutral-100 bg-neutral-50 p-4"
@@ -353,10 +381,6 @@ function EmptyStateCard({
               ))}
             </ul>
           </>
-        ) : (
-          <p className="text-center text-sm text-neutral-400 py-4">
-            Adjust your filters above to find matching opportunities.
-          </p>
         )}
       </div>
     </div>
@@ -412,11 +436,35 @@ function OpportunityCard({
       .catch(() => setCardAi("error"));
   }, [expanded, opportunity, profile]);
 
-  // Use batch match result if available and card AI hasn't loaded yet
-  const displayAi: MatchResult | null =
-    cardAi === "loading" || cardAi === "error" || cardAi === null
-      ? (matchResult ?? null)
-      : cardAi;
+  // Local fallback shown when Gemini fails and no batch result is available.
+  // Derived from the computed score so the badge and text are always consistent.
+  const fallbackRelevance: MatchResult["relevance"] =
+    score >= 70 ? "Strong" : score >= 40 ? "Moderate" : "Light";
+  const fallbackNote =
+    score >= 70
+      ? "Strong alignment with your profile skills."
+      : score >= 40
+      ? "Partial skill overlap with room to grow."
+      : "Low direct overlap with current skills; great learning opportunity.";
+  const localFallback: MatchResult = {
+    opportunityId: opportunity.id,
+    relevance: fallbackRelevance,
+    summary: `Profile Alignment: Match calculated based on relevant technical coursework and background skills.`,
+    note: fallbackNote,
+    missingSkills: opportunity.skills.filter((s) => !profile.skills.includes(s)),
+    actionableAdvice: "Focus on highlighting your relevant project work and core competencies in your resume.",
+  };
+
+  // Resolve display AI: prefer per-card result, fall back to batch, then local fallback when expanded
+  const resolvedAi: MatchResult | null =
+    cardAi !== null && cardAi !== "loading" && cardAi !== "error"
+      ? cardAi
+      : (matchResult ?? null);
+
+  // When expanded and all AI sources failed, use the local fallback so the panel is never empty
+  const displayAi: MatchResult | null = expanded
+    ? (resolvedAi ?? (cardAi === "error" ? localFallback : null))
+    : resolvedAi;
 
   const isCardAiLoading = cardAi === "loading" && !matchResult;
 
@@ -430,43 +478,41 @@ function OpportunityCard({
   );
 
   return (
-    <article className="rounded-xl border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+    <article className="w-full flex flex-col justify-start rounded-xl border border-neutral-200 bg-white p-6 shadow-xs transition-all duration-200 hover:shadow-md hover:border-neutral-300">
       {/* Card header — always visible, click to expand */}
       <button
         type="button"
         onClick={onToggle}
-        className="w-full text-left p-5"
+        className="w-full text-left"
         aria-expanded={expanded}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium capitalize text-indigo-700 ring-1 ring-indigo-100">
+              <span className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium capitalize text-indigo-700 ring-1 ring-indigo-100/80">
                 {opportunity.category}
               </span>
               {displayAi && (
                 <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${relevanceBadgeClass(displayAi.relevance)}`}
+                  className={`inline-flex items-center ${relevanceBadgeClass(displayAi.relevance)}`}
                 >
                   {displayAi.relevance} Match
                 </span>
               )}
             </div>
-            <h2 className="mt-2 text-base font-semibold leading-snug text-neutral-900">
+            <h2 className="mt-1.5 text-base font-bold text-slate-900 leading-snug">
               {opportunity.title}
             </h2>
-            <p className="mt-0.5 text-sm text-neutral-500">
+            <p className="mt-0.5 text-sm text-slate-500 font-normal">
               {opportunity.organization}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm font-semibold tabular-nums ${scoreBadgeClass(score)}`}
-            >
+            <span className={`inline-flex items-center tabular-nums ${scoreBadgeClass(score)}`}>
               {score}% Match
             </span>
             <span
-              className={`text-xs ${isExpired ? "text-red-400" : "text-neutral-400"}`}
+              className={`text-xs tabular-nums mt-1 text-right ${isExpired ? "text-red-400" : "text-slate-400"}`}
             >
               {isExpired
                 ? "Expired"
@@ -511,81 +557,102 @@ function OpportunityCard({
         </div>
       </button>
 
-      {/* Expanded content — no layout shift because it appends below */}
+      {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-neutral-100 px-5 pb-6 pt-5 space-y-5">
-          {/* Gemini AI Advice Box */}
-          {isCardAiLoading ? (
-            <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3">
-              <div className="flex items-center gap-2 text-indigo-500">
-                <SparklesIcon className="h-4 w-4 animate-pulse" />
-                <span className="text-xs font-medium animate-pulse">
-                  Analysing match with Gemini…
-                </span>
-              </div>
-            </div>
-          ) : displayAi ? (
-            <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <SparklesIcon className="h-4 w-4 text-indigo-600" />
-                <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
-                  Gemini AI Insight
-                </p>
-                <span
-                  className={`ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${relevanceBadgeClass(displayAi.relevance)}`}
-                >
-                  {displayAi.relevance} Match
-                </span>
-              </div>
-
-              {displayAi.summary && (
-                <p className="text-sm font-medium text-indigo-900">
-                  {displayAi.summary}
-                </p>
-              )}
-              <p className="text-sm leading-relaxed text-indigo-800">
-                {displayAi.note}
-              </p>
-
-              {/* Matched skills */}
-              {matchedSkills.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-indigo-600 mb-1.5">
-                    Matched skills:
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {matchedSkills.map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
+        <div className="border-t border-neutral-100 pt-5 space-y-5">
+          {/* Gemini AI Advice Box — fixed min-height prevents layout jumping */}
+          <div className="min-h-[120px] transition-all duration-300">
+            {isCardAiLoading ? (
+              /* Skeleton — fixed h-[120px] so card height stays stable */
+              <div className="bg-indigo-50/60 border-l-4 border-indigo-600 border-y border-r border-indigo-100/80 rounded-r-xl p-4 h-[120px] flex flex-col justify-between animate-pulse">
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-indigo-200" />
+                  <div className="h-3 w-28 rounded bg-indigo-200" />
+                  <div className="ml-auto h-5 w-20 rounded-full bg-indigo-200" />
                 </div>
-              )}
-
-              {/* Missing skills */}
-              {displayAi.missingSkills.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-indigo-600 mb-1.5">
-                    Skills to develop:
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {displayAi.missingSkills.slice(0, 5).map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
+                <div className="space-y-2 mt-3">
+                  <div className="h-3 w-full rounded bg-indigo-200" />
+                  <div className="h-3 w-5/6 rounded bg-indigo-200" />
+                  <div className="h-3 w-3/4 rounded bg-indigo-200" />
                 </div>
-              )}
-            </div>
-          ) : null}
+              </div>
+            ) : displayAi ? (
+              <div className="bg-indigo-50/60 border-l-4 border-indigo-600 border-y border-r border-indigo-100/80 rounded-r-xl p-4 space-y-2">
+                {/* Header */}
+                <div className="text-xs font-semibold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+                  <SparklesIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span>Gemini AI Insight</span>
+                  <span className={`ml-auto inline-flex items-center ${relevanceBadgeClass(displayAi.relevance)}`}>
+                    {displayAi.relevance} Match
+                  </span>
+                </div>
+
+                {/* Fit summary */}
+                {displayAi.summary && (
+                  <p className="text-sm text-neutral-800 leading-relaxed font-normal">
+                    {displayAi.summary}
+                  </p>
+                )}
+
+                {/* Match note */}
+                {displayAi.note && (
+                  <p className="text-sm text-neutral-800 leading-relaxed font-normal">
+                    {displayAi.note}
+                  </p>
+                )}
+
+                {/* Matched skills — emerald pills */}
+                {matchedSkills.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500 mb-1.5">
+                      Matched Skills
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {matchedSkills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Skill gaps — outline pills */}
+                {displayAi.missingSkills.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500 mb-1.5">
+                      Skill Gaps
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {displayAi.missingSkills.slice(0, 5).map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actionable advice */}
+                {displayAi.actionableAdvice && (
+                  <div className="rounded-md bg-indigo-100/60 px-3 py-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700 mb-1">
+                      Actionable Advice
+                    </p>
+                    <p className="text-sm text-neutral-800 leading-relaxed font-normal">
+                      {displayAi.actionableAdvice}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
 
           {/* Application deadline — full label in expanded view */}
           <p className="text-xs text-neutral-500">
@@ -647,7 +714,7 @@ function OpportunityCard({
             href={opportunity.applicationUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-5 py-2.5 transition-colors shadow-xs"
           >
             Apply now →
           </a>
@@ -731,9 +798,11 @@ export default function FeedPage() {
 
   // ---------------------------------------------------------------------------
   // Derived: filtered + sorted list
+  // Depends only on data and filters — NOT activitySignal — so card order
+  // never changes when a user expands or views a card.
   // ---------------------------------------------------------------------------
 
-  const filteredOpportunities = (() => {
+  const filteredOpportunities = useMemo(() => {
     if (!hasMounted) return [];
     return sortOpportunities(
       allOpportunities.filter((opp) => {
@@ -749,9 +818,10 @@ export default function FeedPage() {
         return locMatch && modeMatch && catMatch;
       }),
       profile,
-      activitySignal,
+      {}, // pass empty activity signal so sort order is stable during interaction
     );
-  })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOpportunities, selectedLocations, selectedModes, selectedCategories, profile, hasMounted]);
 
   // ---------------------------------------------------------------------------
   // Batch AI — debounced on filter change
@@ -839,8 +909,10 @@ export default function FeedPage() {
         next.delete(id);
       } else {
         next.add(id);
+        // Write to localStorage for future session sorting; do NOT update
+        // activitySignal state here — that would trigger a re-sort and
+        // cause cards to jump position while the user is interacting.
         incrementViewCount(id);
-        setActivitySignal(readActivitySignal());
       }
       return next;
     });
@@ -864,16 +936,10 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 font-[family-name:var(--font-geist-sans)]">
-      {/* Sticky header */}
-      <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link
-            href="/"
-            className="text-sm font-semibold tracking-tight text-indigo-600"
-          >
-            StepAhead
-          </Link>
-          <div className="flex items-center gap-4">
+      {/* Sticky header — shared Navbar component */}
+      <Navbar
+        rightSlot={
+          <>
             {usingMockProfile && (
               <span className="hidden sm:inline text-xs text-amber-600 bg-amber-50 rounded-full px-3 py-1 ring-1 ring-amber-200">
                 Demo profile
@@ -885,88 +951,86 @@ export default function FeedPage() {
             >
               Edit profile
             </Link>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <main className="mx-auto max-w-5xl px-6 pb-24 pt-8">
-        {/* Title + result count */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
+        {/* ── Flat filter toolbar ── */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 mb-6 border-b border-slate-200">
+          {/* Left: page title */}
+          <h1 className="text-lg font-bold tracking-tight text-slate-900 shrink-0">
             Your opportunities
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+
+          {/* Centre: filter chips — no heavy label headers */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ChipGroup
+              options={LOCATION_CHIPS}
+              selected={selectedLocations}
+              multi={true}
+              onChange={setSelectedLocations}
+            />
+            <span className="hidden sm:inline text-slate-200 select-none">|</span>
+            <ChipGroup
+              options={MODE_OPTIONS}
+              selected={selectedModes}
+              multi={false}
+              onChange={setSelectedModes}
+            />
+            <span className="hidden sm:inline text-slate-200 select-none">|</span>
+            <ChipGroup
+              options={CATEGORY_OPTIONS}
+              selected={selectedCategories}
+              multi={true}
+              onChange={setSelectedCategories}
+            />
+          </div>
+
+          {/* Right: result count */}
+          <p className="text-xs font-medium text-slate-500 shrink-0 tabular-nums">
             {resultCount === 0
-              ? "No opportunities match your criteria."
-              : `${resultCount} opportunit${resultCount === 1 ? "y" : "ies"} match your criteria`}
+              ? "No matches"
+              : `${resultCount} result${resultCount === 1 ? "" : "s"}`}
             {aiLoading && (
-              <span className="ml-2 text-indigo-400 animate-pulse">
-                · AI insights loading…
-              </span>
+              <span className="ml-1 text-indigo-400 animate-pulse"> · AI…</span>
             )}
           </p>
         </div>
 
-        {/* Filter bar */}
-        <div className="mb-8 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm space-y-4">
-          <ChipGroup
-            label="Location"
-            options={LOCATION_CHIPS}
-            selected={selectedLocations}
-            multi={true}
-            onChange={setSelectedLocations}
-          />
-          <ChipGroup
-            label="Mode"
-            options={MODE_OPTIONS}
-            selected={selectedModes}
-            multi={false}
-            onChange={setSelectedModes}
-          />
-          <ChipGroup
-            label="Category"
-            options={CATEGORY_OPTIONS}
-            selected={selectedCategories}
-            multi={true}
-            onChange={setSelectedCategories}
-          />
-
-          {/* Full location list */}
-          <details>
-            <summary className="cursor-pointer text-xs font-medium text-indigo-600 hover:underline list-none">
-              More locations ▾
-            </summary>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {LOCATIONS.map((loc) => {
-                const active = selectedLocations.includes(loc);
-                return (
-                  <button
-                    key={loc}
-                    type="button"
-                    onClick={() => {
-                      const withoutAll = selectedLocations.filter(
-                        (l) => l !== "All",
-                      );
-                      const next = withoutAll.includes(loc)
-                        ? withoutAll.filter((l) => l !== loc)
-                        : [...withoutAll, loc];
-                      setSelectedLocations(
-                        next.length === 0 ? ["All"] : next,
-                      );
-                    }}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      active
-                        ? "bg-indigo-600 text-white"
-                        : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-                    }`}
-                  >
-                    {loc}
-                  </button>
-                );
-              })}
-            </div>
-          </details>
-        </div>
+        {/* More locations — collapsible, below the toolbar */}
+        <details className="mb-5 -mt-3">
+          <summary className="cursor-pointer text-xs font-medium text-indigo-600 hover:underline list-none w-fit">
+            More locations ▾
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {LOCATIONS.map((loc) => {
+              const active = selectedLocations.includes(loc);
+              return (
+                <button
+                  key={loc}
+                  type="button"
+                  onClick={() => {
+                    const withoutAll = selectedLocations.filter(
+                      (l) => l !== "All",
+                    );
+                    const next = withoutAll.includes(loc)
+                      ? withoutAll.filter((l) => l !== loc)
+                      : [...withoutAll, loc];
+                    setSelectedLocations(next.length === 0 ? ["All"] : next);
+                  }}
+                  className={`capitalize transition-colors ${
+                    active
+                      ? "bg-indigo-50 text-indigo-700 ring-2 ring-indigo-600/80 font-semibold text-xs px-3 py-1.5 rounded-lg shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200/80 text-xs font-medium px-3 py-1.5 rounded-lg"
+                  }`}
+                >
+                  {loc}
+                </button>
+              );
+            })}
+          </div>
+        </details>
 
         {/* Results */}
         {resultCount === 0 ? (
@@ -975,7 +1039,7 @@ export default function FeedPage() {
             loading={fallbackLoading}
           />
         ) : (
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4 w-full">
             {filteredOpportunities.map((opp) => (
               <OpportunityCard
                 key={opp.id}

@@ -130,8 +130,10 @@ export default function Home() {
           <h1 className="max-w-3xl text-4xl sm:text-5xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-[1.15]">
             Find internships and opportunities that actually fit you.
           </h1>
-          <p className="text-xl sm:text-2xl font-normal text-slate-600 max-w-2xl mt-4 leading-relaxed">
-            Not another list of opportunities. Your list — matched to who you actually are.
+          <p className="text-base sm:text-lg font-normal text-slate-600 max-w-2xl mt-4 leading-relaxed">
+            StepAhead matches your skills and interests to internships,
+            hackathons, competitions, workshops, and courses — no account, no
+            clutter, just a ranked list you can act on.
           </p>
           <div className="mt-10">
             <Link

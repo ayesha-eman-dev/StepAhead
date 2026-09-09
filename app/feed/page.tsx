@@ -732,10 +732,10 @@ export default function FeedPage() {
   const router = useRouter();
 
   const [hasMounted, setHasMounted] = useState(false);
+  const [oppsLoaded, setOppsLoaded] = useState(false);
   const [profile, setProfile] = useState<StudentProfile>(MOCK_PROFILE);
   const [usingMockProfile, setUsingMockProfile] = useState(false);
   const [allOpportunities, setAllOpportunities] = useState<Opportunity[]>([]);
-  const [activitySignal, setActivitySignal] = useState<Record<string, number>>({});
 
   // Filters — initialised to "All"; pre-selected from profile on mount
   const [selectedLocations, setSelectedLocations] = useState<string[]>(["All"]);
@@ -751,6 +751,11 @@ export default function FeedPage() {
   // Empty-state fallback
   const [fallbackRecs, setFallbackRecs] = useState<FallbackRecommendation[]>([]);
   const [fallbackLoading, setFallbackLoading] = useState(false);
+
+  // Master loading flag — true until the first /api/relevance call resolves.
+  // Starts true so navigating into /feed (e.g. after saving onboarding) always
+  // shows the loading state before any empty state can appear.
+  const [isLoading, setIsLoading] = useState(true);
 
   // Card expand tracking
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -784,14 +789,13 @@ export default function FeedPage() {
       setSelectedCategories(stored.preferredTypes);
     }
 
-    setActivitySignal(readActivitySignal());
-
     async function loadOpportunities() {
       const seed = getOpportunities();
       const live = await fetchRemoteOpportunities();
       const merged = dedupe([...seed, ...live]);
       const active = filterExpired(merged);
       setAllOpportunities(active);
+      setOppsLoaded(true);
     }
     void loadOpportunities();
   }, [router]);
@@ -827,8 +831,17 @@ export default function FeedPage() {
   // Batch AI — debounced on filter change
   // ---------------------------------------------------------------------------
 
+  // Stable primitive keys so the effect dependency array can be statically
+  // analysed by the react-hooks/exhaustive-deps lint rule.
+  const locationsKey = selectedLocations.join();
+  const modesKey = selectedModes.join();
+  const categoriesKey = selectedCategories.join();
+
   useEffect(() => {
     if (!hasMounted) return;
+    // Wait until opportunities have actually loaded before deciding empty vs
+    // results — otherwise the initial [] would trigger a premature empty state.
+    if (!oppsLoaded) return;
     if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current);
 
     if (filteredOpportunities.length === 0) {
@@ -853,6 +866,8 @@ export default function FeedPage() {
           // silently ignore
         } finally {
           setFallbackLoading(false);
+          // First /api/relevance response received — safe to reveal empty state.
+          setIsLoading(false);
         }
       }, 400);
 
@@ -882,6 +897,8 @@ export default function FeedPage() {
         // silently ignore
       } finally {
         setAiLoading(false);
+        // First /api/relevance response received — results are ready to show.
+        setIsLoading(false);
       }
     }, 400);
 
@@ -891,10 +908,11 @@ export default function FeedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hasMounted,
+    oppsLoaded,
     filteredOpportunities.length,
-    selectedLocations.join(),
-    selectedModes.join(),
-    selectedCategories.join(),
+    locationsKey,
+    modesKey,
+    categoriesKey,
     profile,
   ]);
 
@@ -989,7 +1007,9 @@ export default function FeedPage() {
 
           {/* Right: result count */}
           <p className="text-xs font-medium text-slate-500 shrink-0 tabular-nums">
-            {resultCount === 0
+            {isLoading
+              ? "Loading…"
+              : resultCount === 0
               ? "No matches"
               : `${resultCount} result${resultCount === 1 ? "" : "s"}`}
             {aiLoading && (
@@ -1033,7 +1053,35 @@ export default function FeedPage() {
         </details>
 
         {/* Results */}
-        {resultCount === 0 ? (
+        {isLoading ? (
+          /* ── Loading state — shown until the first /api/relevance responds ── */
+          <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-neutral-200 bg-white px-8 py-20 text-center shadow-xs">
+            <svg
+              className="h-8 w-8 animate-spin text-indigo-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+            <p className="text-sm font-medium text-slate-600 animate-pulse">
+              Finding opportunities tailored to your profile…
+            </p>
+          </div>
+        ) : resultCount === 0 ? (
           <EmptyStateCard
             recommendations={fallbackRecs}
             loading={fallbackLoading}
